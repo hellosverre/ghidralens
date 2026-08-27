@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.venv/
+__pycache__/
+*.pyc
+.ghidra-projects/
+.env
+
+# vite dep cache lives inside the workspace, not the root node_modules
+ui/node_modules/
+.playwright-mcp/

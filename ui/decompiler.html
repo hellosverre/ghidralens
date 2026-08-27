@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GhidraLens Decompiler</title>
+    <style>
+      /* Two columns until the pane gets narrow, then the sidebar drops under the
+         code. The host decides how wide the iframe is, and it is often narrow. */
+      .dc-split {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 210px;
+        flex: 1 1 auto;
+        min-height: 0;
+      }
+
+      /*
+       * Narrow pane: stack, and collapse to ONE scroll region.
+       *
+       * Side by side, a scrollbar per pane is right. Stacked inside a shell
+       * capped at 620px it is three nested scroll regions in a phone-width
+       * column, and reaching the sidebar means scrolling the code pane to its
+       * end first.
+       *
+       * Two traps this avoids. Child selectors rather than bare class names,
+       * because `.gl-body { overflow: auto }` lives in theme.css, which is
+       * injected after this block - a same-specificity rule here loses on
+       * source order. And plain block flow rather than a one-column grid,
+       * because `.gl-body`'s `flex: 1 1 auto; min-height: 0` lets a grid row
+       * size below its content, which with `overflow: visible` makes the two
+       * panes render on top of each other.
+       */
+      @media (max-width: 640px) {
+        .dc-split {
+          display: block;
+          overflow: auto;
+        }
+        .dc-side {
+          border-left: none;
+          border-top: 1px solid var(--gl-line);
+        }
+        .dc-split > .dc-code,
+        .dc-split > .dc-side {
+          overflow: visible;
+          min-height: auto;
+          flex: none;
+        }
+      }
+
+      .dc-code {
+        font-family: var(--gl-mono);
+        font-size: 12px;
+        line-height: 1.5;
+        padding: 8px 0 14px;
+        overflow: auto;
+      }
+
+      .dc-line {
+        display: flex;
+        align-items: baseline;
+        padding: 0 10px;
+        white-space: pre;
+      }
+
+      .dc-line:hover {
+        background: var(--gl-surface-2);
+      }
+
+      /* Address and line number are reference columns, not content - they sit at
+         low contrast so the eye lands on the code, but stay tabular so a column
+         of addresses reads as a column. */
+      .dc-gutter {
+        flex: 0 0 68px;
+        color: var(--gl-muted);
+        opacity: 0.55;
+        font-variant-numeric: tabular-nums;
+        font-size: 11px;
+        user-select: none;
+      }
+
+      .dc-num {
+        flex: 0 0 34px;
+        text-align: right;
+        padding-right: 12px;
+        color: var(--gl-muted);
+        opacity: 0.45;
+        font-variant-numeric: tabular-nums;
+        font-size: 11px;
+        user-select: none;
+      }
+
+      .dc-src {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+
+      .tok-type { color: var(--tok-type); }
+      .tok-function { color: var(--tok-function); }
+      .tok-variable { color: var(--tok-variable); }
+      .tok-field { color: var(--tok-field); }
+      .tok-comment { color: var(--tok-comment); font-style: italic; }
+      .tok-number { color: var(--tok-number); }
+      .tok-operator { color: var(--tok-operator); }
+      .tok-syntax { color: var(--tok-syntax); }
+      .tok-label { color: var(--tok-field); }
+      .tok-case { color: var(--tok-operator); }
+
+      .tok-link,
+      .tok-editable {
+        cursor: pointer;
+        border-bottom: 1px dotted transparent;
+      }
+
+      .tok-link:hover {
+        border-bottom-color: currentColor;
+      }
+
+      .tok-editable:hover {
+        background: var(--gl-accent-soft);
+        border-radius: 2px;
+        box-shadow: 0 0 0 2px var(--gl-accent-soft);
+      }
+
+      .dc-rename {
+        font: inherit;
+        font-family: var(--gl-mono);
+        color: var(--gl-fg);
+        background: var(--gl-surface-2);
+        border: 1px solid var(--gl-accent);
+        border-radius: 3px;
+        padding: 0 3px;
+        width: 16ch;
+      }
+
+      .dc-side {
+        border-left: 1px solid var(--gl-line);
+        background: var(--gl-surface-2);
+        overflow: auto;
+        padding: 4px 0 12px;
+      }
+
+      .dc-section {
+        padding: 8px 10px 4px;
+      }
+
+      .dc-head {
+        margin: 0 0 6px;
+      }
+
+      .dc-refs {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .dc-ref {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0;
+        width: 100%;
+        text-align: left;
+        font: inherit;
+        font-family: var(--gl-mono);
+        font-size: 11px;
+        background: none;
+        border: none;
+        border-radius: 4px;
+        padding: 3px 6px;
+        cursor: pointer;
+        color: var(--gl-fg);
+      }
+
+      .dc-ref:hover {
+        background: var(--gl-surface);
+      }
+
+      .dc-ref-addr {
+        font-size: 10px;
+        opacity: 0.7;
+      }
+
+      .dc-none,
+      .dc-local {
+        font-family: var(--gl-mono);
+        font-size: 11px;
+        color: var(--gl-muted);
+      }
+
+      .dc-locals {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .dc-local {
+        padding: 2px 6px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .dc-tag {
+        margin-left: 6px;
+        font-family: var(--gl-sans);
+        font-size: 9px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--gl-accent);
+        border: 1px solid var(--gl-accent);
+        border-radius: 3px;
+        padding: 0 3px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/decompiler.ts"></script>
+  </body>
+</html>

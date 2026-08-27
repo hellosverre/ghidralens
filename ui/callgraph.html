@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GhidraLens Call Graph</title>
+    <style>
+      /* The canvas is laid out at its natural size and the pane scrolls around
+         it, rather than the graph being squeezed to fit. A depth-3 graph is
+         genuinely wide, and scaling it down just makes the labels unreadable. */
+      .cg-scroll {
+        overflow: auto;
+        background:
+          radial-gradient(
+            circle at 1px 1px,
+            color-mix(in srgb, var(--gl-muted) 22%, transparent) 1px,
+            transparent 0
+          )
+          0 0 / 18px 18px;
+      }
+
+      .cg-scroll canvas {
+        display: block;
+      }
+
+      .cg-stat {
+        font-family: var(--gl-mono);
+        font-size: 11px;
+        color: var(--gl-muted);
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+
+      .gl-btn[disabled] {
+        opacity: 0.4;
+        cursor: default;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/callgraph.ts"></script>
+  </body>
+</html>

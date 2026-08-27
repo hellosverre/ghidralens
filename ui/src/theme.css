@@ -1,0 +1,238 @@
+/*
+ * One palette for all three views.
+ *
+ * The host stamps data-theme="light" / "dark" on <html> when the user has made an
+ * explicit choice, and stamps nothing at all on the default "system" setting - so
+ * every colour is defined three times: bare :root for light, a
+ * prefers-color-scheme block guarded against an explicit light choice, and a
+ * data-theme="dark" block so the toggle wins in both directions. A colour whose
+ * only definition sits inside one of those blocks renders as the wrong theme's
+ * text on this theme's background.
+ *
+ * Copper is reserved for addresses and numeric constants, and used for nothing
+ * else. In a disassembler the address is the one thing you are always hunting
+ * for on the page, so it gets the only warm colour in an otherwise cold palette.
+ */
+
+:root {
+  color-scheme: light;
+
+  --gl-bg: #f2f5f8;
+  --gl-surface: #ffffff;
+  --gl-surface-2: #e9eef3;
+  --gl-line: #d5dde5;
+  --gl-fg: #17212e;
+  --gl-muted: #5f7186;
+  --gl-accent: #b45309;
+  --gl-accent-soft: #f5e6d3;
+  --gl-focus: #2563eb;
+
+  --tok-type: #7c3aed;
+  --tok-function: #0e7490;
+  --tok-variable: #17212e;
+  --tok-field: #9d174d;
+  --tok-comment: #56796a;
+  --tok-number: #b45309;
+  --tok-operator: #4b5b6d;
+  --tok-syntax: #7c8b9c;
+
+  --gl-mono: ui-monospace, "Cascadia Code", "JetBrains Mono", "SF Mono", Menlo,
+    Consolas, monospace;
+  --gl-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --gl-radius: 6px;
+  --gl-gap: 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --gl-bg: #0d1218;
+    --gl-surface: #141b23;
+    --gl-surface-2: #1b242e;
+    --gl-line: #26313d;
+    --gl-fg: #d9e3ed;
+    --gl-muted: #7b8ca0;
+    --gl-accent: #e0a75e;
+    --gl-accent-soft: #33261a;
+    --gl-focus: #60a5fa;
+
+    --tok-type: #c3a6ff;
+    --tok-function: #5fd3e8;
+    --tok-variable: #d9e3ed;
+    --tok-field: #f3a8c4;
+    --tok-comment: #6f8f7e;
+    --tok-number: #e0a75e;
+    --tok-operator: #9fb0c2;
+    --tok-syntax: #66788b;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --gl-bg: #0d1218;
+  --gl-surface: #141b23;
+  --gl-surface-2: #1b242e;
+  --gl-line: #26313d;
+  --gl-fg: #d9e3ed;
+  --gl-muted: #7b8ca0;
+  --gl-accent: #e0a75e;
+  --gl-accent-soft: #33261a;
+  --gl-focus: #60a5fa;
+
+  --tok-type: #c3a6ff;
+  --tok-function: #5fd3e8;
+  --tok-variable: #d9e3ed;
+  --tok-field: #f3a8c4;
+  --tok-comment: #6f8f7e;
+  --tok-number: #e0a75e;
+  --tok-operator: #9fb0c2;
+  --tok-syntax: #66788b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  /* The host paints its own ground behind the iframe; a transparent body would
+     borrow the host's theme instead of ours. */
+  background: var(--gl-bg);
+  color: var(--gl-fg);
+  font-family: var(--gl-sans);
+  font-size: 13px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--gl-focus);
+  outline-offset: 1px;
+  border-radius: 3px;
+}
+
+/* ------------------------------------------------------------------ chrome */
+
+.gl-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 220px;
+  max-height: 620px;
+  background: var(--gl-surface);
+  border: 1px solid var(--gl-line);
+  border-radius: var(--gl-radius);
+  overflow: hidden;
+}
+
+.gl-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--gl-gap);
+  padding: 8px 12px;
+  background: var(--gl-surface-2);
+  border-bottom: 1px solid var(--gl-line);
+  flex: 0 0 auto;
+}
+
+.gl-bar-title {
+  font-family: var(--gl-mono);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gl-bar-spacer {
+  margin-left: auto;
+}
+
+.gl-eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--gl-muted);
+  font-weight: 600;
+}
+
+.gl-addr {
+  font-family: var(--gl-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--gl-accent);
+}
+
+.gl-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.gl-error {
+  margin: 12px;
+  padding: 10px 12px;
+  border-left: 3px solid #dc2626;
+  background: color-mix(in srgb, #dc2626 8%, transparent);
+  border-radius: 0 var(--gl-radius) var(--gl-radius) 0;
+  font-family: var(--gl-mono);
+  font-size: 12px;
+}
+
+.gl-empty {
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--gl-muted);
+}
+
+/* ------------------------------------------------------------------ inputs */
+
+.gl-input,
+.gl-select {
+  font: inherit;
+  color: var(--gl-fg);
+  background: var(--gl-surface);
+  border: 1px solid var(--gl-line);
+  border-radius: 4px;
+  padding: 3px 7px;
+}
+
+.gl-input {
+  font-family: var(--gl-mono);
+  font-size: 12px;
+  min-width: 140px;
+}
+
+.gl-btn {
+  font: inherit;
+  font-size: 12px;
+  color: var(--gl-fg);
+  background: var(--gl-surface);
+  border: 1px solid var(--gl-line);
+  border-radius: 4px;
+  padding: 3px 9px;
+  cursor: pointer;
+}
+
+.gl-btn:hover {
+  background: var(--gl-surface-2);
+  border-color: var(--gl-muted);
+}
+
+.gl-btn[aria-pressed="true"] {
+  background: var(--gl-accent-soft);
+  border-color: var(--gl-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

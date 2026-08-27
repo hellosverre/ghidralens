@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ghidralens-ui",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--workspace", "ui", "--", "--port", "5178"],
+      "port": 5178
+    }
+  ]
+}

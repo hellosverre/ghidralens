@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GhidraLens view harness</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --hz-bg: #eceff3;
+        --hz-fg: #1a2330;
+        --hz-line: #cdd6e0;
+        --hz-panel: #ffffff;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --hz-bg: #0b0f14;
+          --hz-fg: #cdd8e4;
+          --hz-line: #212b36;
+          --hz-panel: #10161d;
+        }
+      }
+
+      body {
+        margin: 0;
+        padding: 16px;
+        background: var(--hz-bg);
+        color: var(--hz-fg);
+        font: 13px/1.5 system-ui, sans-serif;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 300px;
+        grid-template-rows: auto 1fr;
+        gap: 12px;
+        min-height: 100vh;
+        box-sizing: border-box;
+      }
+
+      header {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 14px;
+        letter-spacing: 0.02em;
+      }
+
+      .hint {
+        color: color-mix(in srgb, var(--hz-fg) 55%, transparent);
+        font-size: 12px;
+      }
+
+      select {
+        font: inherit;
+        padding: 2px 6px;
+      }
+
+      iframe {
+        width: 100%;
+        height: 480px;
+        border: 1px solid var(--hz-line);
+        border-radius: 8px;
+        background: var(--hz-panel);
+      }
+
+      #log {
+        border: 1px solid var(--hz-line);
+        border-radius: 8px;
+        background: var(--hz-panel);
+        padding: 8px;
+        overflow: auto;
+        max-height: 480px;
+        font-family: ui-monospace, Consolas, monospace;
+        font-size: 11px;
+      }
+
+      .trace {
+        padding: 2px 0;
+        border-bottom: 1px solid color-mix(in srgb, var(--hz-line) 50%, transparent);
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .trace-out {
+        color: color-mix(in srgb, var(--hz-fg) 60%, transparent);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>GhidraLens view harness</h1>
+      <select id="view" aria-label="View">
+        <option value="decompiler">decompiler</option>
+        <option value="functions">functions</option>
+        <option value="callgraph">callgraph</option>
+      </select>
+      <select id="theme" aria-label="Host theme">
+        <option value="dark">dark host</option>
+        <option value="light">light host</option>
+      </select>
+      <span class="hint">Real AppBridge, real postMessage, fixture data.</span>
+    </header>
+    <iframe id="frame" title="View under test"></iframe>
+    <div id="log"></div>
+    <script type="module" src="/dev/harness.ts"></script>
+  </body>
+</html>

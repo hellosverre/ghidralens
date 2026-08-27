@@ -1,0 +1,23 @@
+{
+  "name": "ghidralens",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Interactive Ghidra reverse-engineering views inside your MCP client.",
+  "workspaces": [
+    "server",
+    "ui"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "npm run build --workspace ui && npm run build --workspace server",
+    "dev:ui": "npm run dev --workspace ui",
+    "bridge": "python bridge/serve.py",
+    "start": "node server/dist/index.js",
+    "test": "node server/smoke.mjs && python bridge/test_serve.py",
+    "test:server": "node server/smoke.mjs",
+    "test:bridge": "python bridge/test_serve.py"
+  }
+}

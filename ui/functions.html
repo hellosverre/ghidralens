@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GhidraLens Function Browser</title>
+    <style>
+      .fn-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: var(--gl-mono);
+        font-size: 11.5px;
+      }
+
+      .fn-table th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: var(--gl-surface);
+        border-bottom: 1px solid var(--gl-line);
+        text-align: left;
+        padding: 5px 10px;
+        font-family: var(--gl-sans);
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--gl-muted);
+        font-weight: 600;
+        white-space: nowrap;
+      }
+
+      .fn-table th.num,
+      .fn-table td.num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .fn-sort {
+        font: inherit;
+        letter-spacing: inherit;
+        text-transform: inherit;
+        color: inherit;
+        background: none;
+        border: none;
+        padding: 0;
+        cursor: pointer;
+      }
+
+      .fn-sort[aria-pressed="true"] {
+        color: var(--gl-accent);
+      }
+
+      .fn-table td {
+        padding: 3px 10px;
+        border-bottom: 1px solid color-mix(in srgb, var(--gl-line) 45%, transparent);
+        white-space: nowrap;
+      }
+
+      .fn-row {
+        cursor: pointer;
+      }
+
+      .fn-row:hover td {
+        background: var(--gl-surface-2);
+      }
+
+      .fn-name {
+        max-width: 34ch;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .tok-function {
+        color: var(--tok-function);
+      }
+
+      .fn-tag {
+        margin-left: 6px;
+        font-family: var(--gl-sans);
+        font-size: 9px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--gl-muted);
+        border: 1px solid var(--gl-line);
+        border-radius: 3px;
+        padding: 0 3px;
+      }
+
+      .fn-count {
+        font-family: var(--gl-mono);
+        font-size: 11px;
+        color: var(--gl-muted);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .fn-footer {
+        border-bottom: none;
+        border-top: 1px solid var(--gl-line);
+      }
+
+      .gl-btn[disabled] {
+        opacity: 0.4;
+        cursor: default;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/functions.ts"></script>
+  </body>
+</html>

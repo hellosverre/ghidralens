@@ -75,7 +75,7 @@ covers every way it goes wrong. GhidraLens finds a JDK for you if `JAVA_HOME` is
 unset, which covers the usual "installed Java, shell has not restarted" case.
 
 ```bash
-git clone https://github.com/YOURNAME/ghidralens
+git clone https://github.com/hellosverre/ghidralens
 cd ghidralens
 npm install
 npm run build

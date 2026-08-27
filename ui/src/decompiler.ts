@@ -21,6 +21,8 @@ interface Token {
 interface FunctionRef {
   name: string;
   address: string;
+  /** Imported from another module - there is no body here to navigate to. */
+  external?: boolean;
 }
 
 interface Decompilation {
@@ -96,7 +98,11 @@ function header(data: Decompilation): HTMLElement {
  */
 function calleeIndex(data: Decompilation): Map<string, string> {
   const index = new Map<string, string>();
-  for (const call of data.calls) index.set(call.name, call.address);
+  // Imports are deliberately left out. FindClose lives in KERNEL32, so following
+  // it leads nowhere - a link that always errors is worse than plain text.
+  for (const call of data.calls) {
+    if (!call.external) index.set(call.name, call.address);
+  }
   return index;
 }
 
@@ -207,11 +213,23 @@ function refList(title: string, refs: FunctionRef[], empty: string): HTMLElement
   for (const ref of refs) {
     const item = el(
       "button",
-      { class: "dc-ref", type: "button", title: shortAddress(ref.address) },
+      {
+        class: ref.external ? "dc-ref dc-ref-import" : "dc-ref",
+        type: "button",
+        disabled: ref.external,
+        title: ref.external
+          ? `${ref.name} is imported - no code to show`
+          : shortAddress(ref.address),
+      },
       el("span", { class: "tok tok-function", text: ref.name }),
-      el("span", { class: "gl-addr dc-ref-addr", text: shortAddress(ref.address) }),
+      el(
+        "span",
+        { class: "gl-addr dc-ref-addr" },
+        ref.external ? el("span", { class: "dc-tag", text: "import" }) : "",
+        ref.external ? "" : shortAddress(ref.address),
+      ),
     );
-    item.addEventListener("click", () => navigate(ref.address));
+    if (!ref.external) item.addEventListener("click", () => navigate(ref.address));
     list.append(item);
   }
   return section(`${title} (${refs.length})`, list);

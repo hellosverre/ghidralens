@@ -42,6 +42,7 @@ const NODE_H = 24;
 const COL_GAP = 190;
 const ROW_GAP = 8;
 const PAD = 24;
+const MAX_ROWS = 14;
 
 let view: ViewHandle<CallGraph>;
 let graph: CallGraph | null = null;
@@ -56,10 +57,18 @@ const ctx = canvas.getContext("2d")!;
 // ------------------------------------------------------------------- layout
 
 /**
- * Signed BFS from the root: callees get positive levels, callers negative.
+ * Assign each node a signed level: callers negative, callees positive.
  *
- * A node reachable both ways keeps whichever level is closer to zero, so a
- * mutually recursive pair does not get flung to opposite ends of the canvas.
+ * Two independent one-directional walks, not one walk that flips direction as
+ * it goes. That distinction is the whole thing. A mixed walk lets you reach a
+ * caller of the root (level -1) and then step *forward* to everything that
+ * caller also calls, landing all of them back on level 0 - so on a real binary,
+ * where callers share callees constantly, sixty unrelated functions pile into
+ * the root's own column and the layout collapses into one unreadable stack.
+ *
+ * Walking each direction separately keeps the sign meaningful: left of centre
+ * reaches you, right of centre you reach. A node found both ways keeps whichever
+ * hop count is smaller, and the root always stays alone at 0.
  */
 function assignLevels(data: CallGraph): Map<string, number> {
   const out = new Map<string, string[]>();
@@ -71,25 +80,33 @@ function assignLevels(data: CallGraph): Map<string, number> {
   }
 
   const levels = new Map<string, number>([[data.root, 0]]);
-  const queue: string[] = [data.root];
 
-  while (queue.length) {
-    const at = queue.shift()!;
-    const level = levels.get(at)!;
+  const walk = (adjacency: Map<string, string[]>, sign: 1 | -1) => {
+    const seen = new Set([data.root]);
+    let frontier = [data.root];
+    let distance = 0;
 
-    const walk = (neighbours: string[] | undefined, delta: number) => {
-      for (const next of neighbours ?? []) {
-        const candidate = level + delta;
-        const existing = levels.get(next);
-        if (existing !== undefined && Math.abs(existing) <= Math.abs(candidate)) continue;
-        levels.set(next, candidate);
-        queue.push(next);
+    while (frontier.length) {
+      distance++;
+      const next: string[] = [];
+      for (const at of frontier) {
+        for (const neighbour of adjacency.get(at) ?? []) {
+          if (seen.has(neighbour)) continue;
+          seen.add(neighbour);
+          const candidate = sign * distance;
+          const existing = levels.get(neighbour);
+          if (existing === undefined || Math.abs(candidate) < Math.abs(existing)) {
+            levels.set(neighbour, candidate);
+          }
+          next.push(neighbour);
+        }
       }
-    };
+      frontier = next;
+    }
+  };
 
-    walk(out.get(at), 1);
-    walk(incoming.get(at), -1);
-  }
+  walk(out, 1);
+  walk(incoming, -1);
 
   return levels;
 }
@@ -109,21 +126,30 @@ function layout(data: CallGraph): void {
     bucket.sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  const sortedLevels = [...columns.keys()].sort((a, b) => a - b);
-  const tallest = Math.max(...[...columns.values()].map((b) => b.length), 1);
+  // A hub function on a real binary has 60 direct callers. One column of 60 is
+  // a 2000px scroll with the root somewhere in the middle of it, so wide levels
+  // wrap into side-by-side sub-columns and stay one screen tall.
+  const stripes: { level: number; nodes: GraphNode[] }[] = [];
+  for (const level of [...columns.keys()].sort((a, b) => a - b)) {
+    const bucket = columns.get(level)!;
+    for (let i = 0; i < bucket.length; i += MAX_ROWS) {
+      stripes.push({ level, nodes: bucket.slice(i, i + MAX_ROWS) });
+    }
+  }
+
+  const tallest = Math.max(...stripes.map((s) => s.nodes.length), 1);
   const height = tallest * (NODE_H + ROW_GAP) + PAD * 2;
-  const width = sortedLevels.length * COL_GAP + PAD * 2;
+  const width = stripes.length * COL_GAP + PAD * 2;
 
   placed = [];
-  sortedLevels.forEach((level, column) => {
-    const bucket = columns.get(level)!;
-    const columnHeight = bucket.length * (NODE_H + ROW_GAP);
-    const top = (height - columnHeight) / 2;
+  stripes.forEach((stripe, column) => {
+    const stripeHeight = stripe.nodes.length * (NODE_H + ROW_GAP);
+    const top = (height - stripeHeight) / 2;
 
-    bucket.forEach((node, row) => {
+    stripe.nodes.forEach((node, row) => {
       placed.push({
         ...node,
-        level,
+        level: stripe.level,
         x: PAD + column * COL_GAP,
         y: top + row * (NODE_H + ROW_GAP),
         w: COL_GAP - 44,

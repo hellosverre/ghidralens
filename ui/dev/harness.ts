@@ -39,6 +39,49 @@ function trace(direction: "in" | "out", text: string): void {
 }
 
 /**
+ * Live mode: forward tool calls to a running bridge through Vite's dev proxy.
+ *
+ * Fixtures keep the views developable with nothing installed, but they are my
+ * idea of what Ghidra emits. A real function is 400 lines with 56 locals and a
+ * call graph of 87 nodes, and that is where layout actually breaks - so the
+ * harness can talk to the real thing when one is running.
+ */
+const BRIDGE_ROUTES: Record<string, { method: "GET" | "POST"; path: string }> = {
+  decompile: { method: "GET", path: "/decompile" },
+  list_functions: { method: "GET", path: "/functions" },
+  call_graph: { method: "GET", path: "/callgraph" },
+  xrefs_to: { method: "GET", path: "/xrefs" },
+  find_strings: { method: "GET", path: "/strings" },
+  rename_symbol: { method: "POST", path: "/rename" },
+  add_comment: { method: "POST", path: "/comment" },
+  save_program: { method: "POST", path: "/save" },
+};
+
+async function callBridge(name: string, args: Record<string, unknown>) {
+  const route = BRIDGE_ROUTES[name];
+  if (!route) throw new Error(`no bridge route for ${name}`);
+
+  const url = new URL(`/bridge${route.path}`, location.origin);
+  const init: RequestInit = { method: route.method };
+
+  if (route.method === "GET") {
+    for (const [key, value] of Object.entries(args)) {
+      if (value !== undefined && value !== null && value !== "") {
+        url.searchParams.set(key, String(value));
+      }
+    }
+  } else {
+    init.body = JSON.stringify(args);
+    init.headers = { "Content-Type": "application/json" };
+  }
+
+  const response = await fetch(url, init);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error ?? `HTTP ${response.status}`);
+  return data;
+}
+
+/**
  * Answer the view's tool calls from fixtures.
  *
  * The write tools echo success without mutating anything: the harness has no
@@ -52,6 +95,15 @@ function handleToolCall(name: string, args: Record<string, unknown>) {
     content: [{ type: "text" as const, text }],
     structuredContent: data as Record<string, unknown>,
   });
+
+  if (isLive()) {
+    return callBridge(name, args)
+      .then((data) => reply(data, "live"))
+      .catch((error) => ({
+        content: [{ type: "text" as const, text: String(error.message ?? error) }],
+        isError: true as const,
+      }));
+  }
 
   switch (name) {
     case "decompile":
@@ -86,13 +138,40 @@ function handleToolCall(name: string, args: Record<string, unknown>) {
   }
 }
 
-function openingResult(view: ViewName) {
-  const data =
-    view === "decompiler" ? DECOMPILATION : view === "functions" ? FUNCTIONS : CALL_GRAPH;
-  return {
-    content: [{ type: "text" as const, text: "fixture" }],
-    structuredContent: data as unknown as Record<string, unknown>,
-  };
+function isLive(): boolean {
+  return (document.getElementById("source") as HTMLSelectElement).value === "live";
+}
+
+/**
+ * The payload a real host would attach to the notification that opens the view.
+ *
+ * In live mode there is no preceding tool call to borrow a result from, so the
+ * harness makes the same call the model would have made: the biggest function
+ * for the decompiler and the graph, the first page for the browser.
+ */
+async function openingResult(view: ViewName) {
+  const wrap = (data: unknown, text: string) => ({
+    content: [{ type: "text" as const, text }],
+    structuredContent: data as Record<string, unknown>,
+  });
+
+  if (!isLive()) {
+    const data =
+      view === "decompiler" ? DECOMPILATION : view === "functions" ? FUNCTIONS : CALL_GRAPH;
+    return wrap(data, "fixture");
+  }
+
+  const list = await callBridge("list_functions", { limit: 1, sort: "size" });
+  const target = list.functions[0];
+  trace("out", `live target: ${target.name} @ ${target.address}`);
+
+  if (view === "functions") {
+    return wrap(await callBridge("list_functions", { limit: 200 }), "live");
+  }
+  if (view === "decompiler") {
+    return wrap(await callBridge("decompile", { address: target.address }), "live");
+  }
+  return wrap(await callBridge("call_graph", { address: target.address, depth: 2 }), "live");
 }
 
 async function load(view: ViewName): Promise<void> {
@@ -119,8 +198,12 @@ async function load(view: ViewName): Promise<void> {
   host.addEventListener("initialized", () => {
     trace("in", "ui/notifications/initialized");
     void host.sendToolInput({ arguments: {} });
-    void host.sendToolResult(openingResult(view));
-    trace("out", "ui/notifications/tool-result (fixture)");
+    void openingResult(view)
+      .then((result) => {
+        void host.sendToolResult(result);
+        trace("out", `ui/notifications/tool-result (${isLive() ? "live" : "fixture"})`);
+      })
+      .catch((error) => trace("out", `opening payload failed: ${error.message ?? error}`));
   });
 
   host.onmessage = async (params) => {
@@ -139,6 +222,9 @@ async function load(view: ViewName): Promise<void> {
 }
 
 picker.addEventListener("change", () => void load(picker.value as ViewName));
+document
+  .getElementById("source")!
+  .addEventListener("change", () => void load(picker.value as ViewName));
 themePicker.addEventListener("change", () => {
   bridge?.setHostContext({ theme: themePicker.value as "light" | "dark", displayMode: "inline" });
   trace("out", `host-context-changed theme=${themePicker.value}`);

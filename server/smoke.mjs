@@ -40,9 +40,17 @@ await client.connect(
   new StdioClientTransport({
     command: process.execPath,
     args: [SERVER],
-    // A dummy token is enough: nothing here reaches the bridge, and without one
-    // the server refuses to start at all.
-    env: { ...process.env, GHIDRALENS_TOKEN: "smoke-test-token" },
+    env: {
+      ...process.env,
+      // A dummy token is enough - nothing here reaches a bridge - but the server
+      // refuses to start without one.
+      GHIDRALENS_TOKEN: "smoke-test-token",
+      // Pin a port nothing listens on. Inheriting the ambient value would point
+      // this at a real bridge whenever one happens to be running, and the
+      // "degrades gracefully when the bridge is down" check would stop testing
+      // that.
+      GHIDRALENS_BRIDGE_URL: "http://127.0.0.1:8999",
+    },
     stderr: "ignore",
   }),
 );

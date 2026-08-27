@@ -16,13 +16,27 @@ a DecompInterface is not safe to share across threads anyway.
 
 from __future__ import annotations
 
-import contextlib
+import glob
 import os
 import threading
 from dataclasses import dataclass, field
 from typing import Any, Iterable, Optional
 
 DECOMPILE_TIMEOUT_SECONDS = 60
+
+# Where a JDK usually lives, per platform. PyGhidra refuses to start without
+# JAVA_HOME or a `java` on PATH, and on Windows a freshly installed JDK is on
+# neither until the shell is restarted - which produces a baffling
+# "Java was not found in PATH or JAVA_HOME" on a machine that plainly has Java.
+JDK_GLOBS = [
+    r"C:\Program Files\Eclipse Adoptium\jdk-2*",
+    r"C:\Program Files\Java\jdk-2*",
+    r"C:\Program Files\Microsoft\jdk-2*",
+    r"C:\Program Files\Amazon Corretto\jdk2*",
+    "/Library/Java/JavaVirtualMachines/*/Contents/Home",
+    "/usr/lib/jvm/*",
+    os.path.expanduser("~/.jdks/*"),
+]
 
 
 class SessionError(RuntimeError):
@@ -37,9 +51,9 @@ class GhidraSession:
     project_name: str = "ghidralens"
 
     binary_path: Optional[str] = None
-    _stack: contextlib.ExitStack = field(default_factory=contextlib.ExitStack)
-    _flat: Any = None
+    _project: Any = None
     _program: Any = None
+    _consumer: Any = None
     _decompiler: Any = None
     _monitor: Any = None
     _lock: threading.RLock = field(default_factory=threading.RLock)
@@ -51,6 +65,9 @@ class GhidraSession:
         """Boot the JVM once. Importing `ghidra` before this raises."""
         if self._started:
             return
+        ensure_java_home()
+        assert_no_shadowed_ghidra()
+
         import pyghidra
 
         pyghidra.start(verbose=False)
@@ -60,10 +77,21 @@ class GhidraSession:
         """
         Open a binary, replacing whatever was open before.
 
-        `analyze=True` runs Ghidra's full auto-analysis, which is the slow part -
-        seconds for a small binary, minutes for something like a game client. It
-        only happens on the first open of a given file: results are written into
-        the project directory, so re-opening the same path afterwards is fast.
+        Auto-analysis is the slow part - ~10 seconds for a 64 KB system utility,
+        minutes for something like a game client - so it must happen exactly
+        once. Getting that right takes more care than it looks:
+
+          - the importer saves the program *before* analysis, so saving the load
+            results is not enough; the analysed program has to be saved again or
+            the next open silently re-imports a half-analysed copy (measured:
+            91 functions instead of 198)
+          - Ghidra's own "Analyzed" flag is what says whether that already
+            happened, so a re-open reads it rather than re-running analysis and
+            hoping
+
+        `pyghidra.open_program` would do all of this in one call, but it is
+        deprecated in PyGhidra 3.x and blows the Python recursion limit on the
+        way out.
         """
         binary_path = os.path.abspath(binary_path)
         if not os.path.isfile(binary_path):
@@ -71,35 +99,65 @@ class GhidraSession:
 
         self.start_jvm()
 
+        import pyghidra
+        from java.lang import Object as JavaObject
+
         with self._lock:
             self.close()
 
-            import pyghidra
-
             os.makedirs(self.project_dir, exist_ok=True)
-            self._flat = self._stack.enter_context(
-                pyghidra.open_program(
-                    binary_path,
-                    project_location=self.project_dir,
-                    project_name=self.project_name,
-                    analyze=analyze,
-                )
+            self._project = pyghidra.open_project(
+                self.project_dir, self.project_name, create=True
             )
-            self._program = self._flat.getCurrentProgram()
+
+            project_path = "/" + os.path.basename(binary_path)
+            if self._project.getProjectData().getFile(project_path) is None:
+                results = pyghidra.program_loader().project(self._project).source(
+                    binary_path
+                ).load()
+                try:
+                    results.save(pyghidra.task_monitor())
+                finally:
+                    # Release the importer's handles; we re-open through the
+                    # project below so there is exactly one consumer to track.
+                    results.close()
+
+            self._program, self._consumer = pyghidra.consume_program(
+                self._project, project_path
+            )
             self.binary_path = binary_path
+
+            if analyze and not self._is_analyzed():
+                pyghidra.analyze(self._program)
+                self._flush()
+
             self._decompiler = self._new_decompiler()
 
         return self.info()
+
+    def _is_analyzed(self) -> bool:
+        import pyghidra
+
+        return bool(pyghidra.program_info(self._program).getBoolean("Analyzed", False))
+
+    def _flush(self) -> None:
+        """Write the in-memory program back into the project on disk."""
+        import pyghidra
+
+        self._program.save("GhidraLens", pyghidra.task_monitor())
 
     def close(self) -> None:
         with self._lock:
             if self._decompiler is not None:
                 self._decompiler.dispose()
                 self._decompiler = None
-            self._stack.close()
-            self._stack = contextlib.ExitStack()
-            self._flat = None
+            if self._program is not None and self._consumer is not None:
+                self._program.release(self._consumer)
+            if self._project is not None:
+                self._project.close()
+            self._project = None
             self._program = None
+            self._consumer = None
             self.binary_path = None
 
     def _new_decompiler(self):
@@ -141,14 +199,28 @@ class GhidraSession:
             "executableSha256": str(p.getExecutableSHA256() or ""),
         }
 
+    def all_functions(self):
+        """
+        Every function, internal and imported.
+
+        `getFunctions(True)` walks the memory address spaces, so it silently
+        omits externals - on a small system utility that was 94 of 198 functions,
+        i.e. every Win32 API the binary imports, which is most of what you
+        actually want to search for.
+        """
+        program = self.require_program()
+        fm = program.getFunctionManager()
+        yield from fm.getFunctions(True)
+        yield from fm.getExternalFunctions()
+
     def resolve(self, address: str = "", name: str = ""):
-        """Find a function by hex address, or by exact then substring name match."""
+        """Find a function by address, or by exact then substring name match."""
         program = self.require_program()
         fm = program.getFunctionManager()
 
         if address:
             addr = self.to_address(address)
-            func = fm.getFunctionContaining(addr) or fm.getFunctionAt(addr)
+            func = fm.getFunctionAt(addr) or fm.getFunctionContaining(addr)
             if func is None:
                 raise SessionError("no function at " + address)
             return func
@@ -156,9 +228,9 @@ class GhidraSession:
         if not name:
             raise SessionError("pass either address or name")
 
-        matches = [f for f in fm.getFunctions(True) if str(f.getName()) == name]
+        matches = [f for f in self.all_functions() if str(f.getName()) == name]
         if not matches:
-            matches = [f for f in fm.getFunctions(True) if name in str(f.getName())]
+            matches = [f for f in self.all_functions() if name in str(f.getName())]
         if not matches:
             raise SessionError("no function named " + repr(name))
         if len(matches) > 1:
@@ -167,16 +239,24 @@ class GhidraSession:
         return matches[0]
 
     def to_address(self, address: str):
+        """Parse whatever `hexaddr` produced - bare hex, or a space-qualified form."""
         program = self.require_program()
+        factory = program.getAddressFactory()
         text = address.strip()
+
+        if ":" in text:
+            parsed = factory.getAddress(text)
+            if parsed is None:
+                raise SessionError("bad address " + repr(address))
+            return parsed
+
         if text.lower().startswith("0x"):
             text = text[2:]
         try:
             offset = int(text, 16)
         except ValueError as exc:
             raise SessionError("bad address " + repr(address)) from exc
-        space = program.getAddressFactory().getDefaultAddressSpace()
-        return space.getAddress(offset)
+        return factory.getDefaultAddressSpace().getAddress(offset)
 
     def list_functions(
         self, query: str = "", limit: int = 200, offset: int = 0, sort: str = "address"
@@ -185,7 +265,7 @@ class GhidraSession:
         needle = query.lower()
 
         rows = []
-        for f in program.getFunctionManager().getFunctions(True):
+        for f in self.all_functions():
             fname = str(f.getName())
             if needle and needle not in fname.lower():
                 continue
@@ -193,7 +273,7 @@ class GhidraSession:
                 {
                     "name": fname,
                     "address": hexaddr(f.getEntryPoint()),
-                    "size": int(f.getBody().getNumAddresses()),
+                    "size": 0 if f.isExternal() else int(f.getBody().getNumAddresses()),
                     "params": int(f.getParameterCount()),
                     "callers": len(list(f.getCallingFunctions(self.monitor))),
                     "calls": len(list(f.getCalledFunctions(self.monitor))),
@@ -204,7 +284,12 @@ class GhidraSession:
             )
 
         keys = {
-            "address": lambda r: int(r["address"], 16),
+            # Externals sort after everything in memory rather than blowing up
+            # int(); their offsets are indices, not addresses, so ordering them
+            # among real addresses would be meaningless anyway.
+            "address": lambda r: (1, r["address"])
+            if ":" in r["address"]
+            else (0, "%016x" % int(r["address"], 16)),
             "name": lambda r: r["name"].lower(),
             "size": lambda r: -r["size"],
             "callers": lambda r: -r["callers"],
@@ -230,6 +315,18 @@ class GhidraSession:
         renameable and every call navigable.
         """
         func = self.resolve(address=address, name=name)
+
+        # An import is a name and a call target, not code - it lives in another
+        # module entirely. Ghidra's own answer here is "Cannot marshal address
+        # space: EXTERNAL", which says nothing useful to anyone.
+        if func.isExternal():
+            library = str(func.getExternalLocation().getLibraryName() or "another module")
+            raise SessionError(
+                str(func.getName()) + " is imported from " + library
+                + " - there is no code for it in this binary. Use xrefs_to to see "
+                "where it is called from."
+            )
+
         results = self._decompiler.decompileFunction(
             func, DECOMPILE_TIMEOUT_SECONDS, self.monitor
         )
@@ -258,14 +355,8 @@ class GhidraSession:
             "signature": str(func.getSignature().getPrototypeString()),
             "lines": lines,
             "locals": _local_symbols(results),
-            "calls": [
-                {"name": str(c.getName()), "address": hexaddr(c.getEntryPoint())}
-                for c in func.getCalledFunctions(self.monitor)
-            ],
-            "callers": [
-                {"name": str(c.getName()), "address": hexaddr(c.getEntryPoint())}
-                for c in func.getCallingFunctions(self.monitor)
-            ],
+            "calls": [_ref(c) for c in func.getCalledFunctions(self.monitor)],
+            "callers": [_ref(c) for c in func.getCallingFunctions(self.monitor)],
         }
 
     # ------------------------------------------------------------------ graph
@@ -450,17 +541,85 @@ class GhidraSession:
         return {"address": hexaddr(addr), "comment": text}
 
     def save(self) -> dict:
-        """Flush the in-memory program back to the project on disk."""
-        program = self.require_program()
-        program.save("GhidraLens save", self.monitor)
+        """Flush renames and comments back to the project on disk."""
+        self.require_program()
+        self._flush()
         return {"saved": True, "path": self.binary_path}
 
 
 # --------------------------------------------------------------------- helpers
 
 
+def assert_no_shadowed_ghidra() -> None:
+    """
+    Refuse to start if a directory on sys.path is called `ghidra`.
+
+    PyGhidra serves the `ghidra` package out of the JVM. A plain directory of
+    that name anywhere on sys.path wins instead, as an implicit namespace
+    package - and then PyGhidra's own import hook, which resolves modules by
+    doing `from ghidra.framework import Application`, re-enters itself and
+    recurses until the interpreter gives up.
+
+    The failure surfaces as a bare "maximum recursion depth exceeded" with a
+    thousand identical frames and no mention of the actual cause, so it is worth
+    a few lines to catch. It is not hypothetical: Ghidra itself creates a
+    `ghidra` directory in the system temp folder, which shadows the real package
+    for any script run from there.
+    """
+    import sys
+
+    for entry in sys.path:
+        candidate = os.path.join(entry or os.getcwd(), "ghidra")
+        if os.path.isdir(candidate) and not os.path.isfile(
+            os.path.join(candidate, "__init__.py")
+        ):
+            raise SessionError(
+                f"a directory named 'ghidra' on sys.path ({candidate}) shadows the "
+                "package PyGhidra serves from the JVM. Run the bridge from "
+                "somewhere else, or remove that directory from sys.path."
+            )
+
+
+def ensure_java_home() -> None:
+    """
+    Point JAVA_HOME at a JDK if the environment has not already.
+
+    PyGhidra shells out to Ghidra's LaunchSupport, which needs either JAVA_HOME
+    or a `java` on PATH. On Windows a JDK installed through winget or an MSI is
+    on neither until the shell restarts, so an otherwise perfectly set up machine
+    fails with "Java was not found in PATH or JAVA_HOME". Finding it ourselves
+    turns that into a non-event.
+    """
+    if os.environ.get("JAVA_HOME"):
+        return
+
+    for pattern in JDK_GLOBS:
+        # Newest first: these directory names sort lexicographically by version
+        # closely enough that the last match is the highest JDK present.
+        for candidate in sorted(glob.glob(pattern), reverse=True):
+            launcher = os.path.join(candidate, "bin", "java.exe")
+            if not os.path.isfile(launcher):
+                launcher = os.path.join(candidate, "bin", "java")
+            if os.path.isfile(launcher):
+                os.environ["JAVA_HOME"] = candidate
+                return
+
+
 def hexaddr(addr) -> str:
-    return "0x%x" % int(addr.getOffset())
+    """
+    Render an address as a string that can be handed straight back to us.
+
+    Not every address is a RAM offset. Imported functions live in Ghidra's
+    EXTERNAL space, where the offset is a small index - `FindClose` is offset
+    0x3e - and flattening that to "0x3e" produces a perfectly valid RAM address
+    that points at nothing. Clicking any imported symbol then 404s.
+
+    So anything outside loaded memory keeps Ghidra's own space-qualified form
+    ("EXTERNAL:0000003e"), which `to_address` round-trips exactly.
+    """
+    if addr.getAddressSpace().isLoadedMemorySpace():
+        return "0x%x" % int(addr.getOffset())
+    return str(addr)
 
 
 def _flatten_markup(node) -> Iterable[Any]:
@@ -481,6 +640,14 @@ def _flatten_markup(node) -> Iterable[Any]:
             stack.extend(reversed(children))
         else:
             yield current
+
+
+def _ref(func) -> dict:
+    return {
+        "name": str(func.getName()),
+        "address": hexaddr(func.getEntryPoint()),
+        "external": bool(func.isExternal()),
+    }
 
 
 def _find_local(high_function, name: str):

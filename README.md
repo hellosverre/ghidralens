@@ -36,14 +36,25 @@ two the model never sees — they exist only so a click in a view can fire them.
 ```
 
 The bridge is a separate long-lived process on purpose. Ghidra's auto-analysis
-is the expensive step — minutes on a real target — and it happens **once**.
+is the expensive step, and it happens **once**. Measured on a 64 KB Windows
+system utility (198 functions):
+
+| | |
+| --- | --- |
+| First open, with analysis | **25 s** |
+| Re-open the same binary | **0.3 s** |
+| Decompile one 2 KB function | **0.4 s** |
+| 87-node call graph | **< 0.1 s** |
+
 Restart the MCP server or the client and the analysed program is still there.
 
 ## Setup
 
-**Prerequisites:** Ghidra 11.3+, a JDK 21+, Python 3.9–3.13, Node 20+.
-See [bridge/setup.py.md](bridge/setup.py.md) — the Python side is fussy and that
-file covers every way it goes wrong.
+**Prerequisites:** Ghidra 11.3+, a JDK 21+, Python 3.9–3.13 (**not 3.14** —
+JPype has no wheel for it yet), Node 20+. See
+[bridge/setup.py.md](bridge/setup.py.md) — the Python side is fussy and that file
+covers every way it goes wrong. GhidraLens finds a JDK for you if `JAVA_HOME` is
+unset, which covers the usual "installed Java, shell has not restarted" case.
 
 ```bash
 git clone https://github.com/YOURNAME/ghidralens
@@ -111,20 +122,31 @@ npm run dev:ui
 `ui/dev/harness.ts` is a **real MCP Apps host** — it runs the SDK's `AppBridge`
 against the view in an iframe, so the `ui/initialize` handshake, the opening
 `ui/notifications/tool-result`, and every `tools/call` a click fires all go over
-real postMessage JSON-RPC. Only the data is fake. There is a message trace down
-the right-hand side, and a host-theme switch, because the views have to look
-right in both.
+real postMessage JSON-RPC. There is a message trace down the right-hand side and
+a host-theme switch, because the views have to look right in both.
+
+Two data sources, switchable in the toolbar:
+
+- **fixtures** — no Ghidra needed, nothing to install
+- **live bridge** — proxies to a running bridge, so you develop against a real
+  analysed program
+
+Use live before you trust anything. Fixtures are tidy; real output is a
+400-line function with 56 locals and an 87-node call graph, and that is where
+layout actually breaks.
 
 ## Tests
 
-```bash
-node server/smoke.mjs    # MCP surface: tools, ui:// resources, error handling
-python bridge/test_serve.py    # bridge auth, routing, validation
-```
+| Suite | Needs Ghidra | Covers |
+| --- | --- | --- |
+| `node server/smoke.mjs` | no | MCP surface: tools, `ui://` resources, tool visibility, graceful failure with no bridge |
+| `python bridge/test_serve.py` | no | Bridge auth, CSRF rejection, routing, input validation |
+| `python bridge/test_session.py` | **yes** | Every Ghidra call: analysis, caching, decompiler tokens, imports, renames, writes |
+| `node server/live.mjs` | **yes** (bridge running) | The whole chain, and that every payload matches the shape the views index into |
 
-Neither needs Ghidra. `smoke.mjs` runs the real server over a real stdio
-transport with no bridge behind it, which is exactly the state a first-time user
-is in.
+The first two are what CI can run. `test_session.py` is the one that matters
+after touching `bridge/session.py` — it is the only thing that proves the Ghidra
+API calls are right, and it caught three real bugs the day it was written.
 
 ## Security
 

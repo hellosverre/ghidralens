@@ -98,11 +98,15 @@
         <option value="functions">functions</option>
         <option value="callgraph">callgraph</option>
       </select>
+      <select id="source" aria-label="Data source">
+        <option value="fixture">fixtures</option>
+        <option value="live">live bridge</option>
+      </select>
       <select id="theme" aria-label="Host theme">
         <option value="dark">dark host</option>
         <option value="light">light host</option>
       </select>
-      <span class="hint">Real AppBridge, real postMessage, fixture data.</span>
+      <span class="hint">Real AppBridge, real postMessage. Live mode needs a running bridge.</span>
     </header>
     <iframe id="frame" title="View under test"></iframe>
     <div id="log"></div>

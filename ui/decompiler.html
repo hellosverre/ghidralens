@@ -175,6 +175,17 @@
         background: var(--gl-surface);
       }
 
+      /* Imports still belong in the list - knowing a function calls FindClose is
+         the point - they are just not somewhere you can go. */
+      .dc-ref-import {
+        cursor: default;
+        opacity: 0.7;
+      }
+
+      .dc-ref-import:hover {
+        background: none;
+      }
+
       .dc-ref-addr {
         font-size: 10px;
         opacity: 0.7;

@@ -18,6 +18,8 @@
     "start": "node server/dist/index.js",
     "test": "node server/smoke.mjs && python bridge/test_serve.py",
     "test:server": "node server/smoke.mjs",
-    "test:bridge": "python bridge/test_serve.py"
+    "test:bridge": "python bridge/test_serve.py",
+    "test:ghidra": "python bridge/test_session.py",
+    "test:live": "node server/live.mjs"
   }
 }

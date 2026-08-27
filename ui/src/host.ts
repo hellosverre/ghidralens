@@ -111,8 +111,16 @@ export function showError(root: Element, error: unknown): void {
   root.append(el("div", { class: "gl-error" }, el("strong", { text: "Error" }), " ", message));
 }
 
-/** Ghidra hands back addresses as 0x-prefixed hex; render them fixed-width. */
+/**
+ * Render an address fixed-width.
+ *
+ * Most are 0x-prefixed hex. Imported functions instead come back space-qualified
+ * ("EXTERNAL:0000003e") because their offsets are indices into Ghidra's external
+ * space rather than real addresses - those are already canonical, so pass them
+ * through untouched instead of producing "0xEXTERNAL:0000003E".
+ */
 export function shortAddress(address: string): string {
+  if (address.includes(":")) return address;
   const hex = address.replace(/^0x/, "").toUpperCase();
   return "0x" + hex.padStart(8, "0");
 }

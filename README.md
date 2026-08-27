@@ -135,6 +135,22 @@ Use live before you trust anything. Fixtures are tidy; real output is a
 400-line function with 56 locals and an 87-node call graph, and that is where
 layout actually breaks.
 
+## Running it on a local model
+
+Reverse engineering is exactly the work people would rather not send to a hosted
+model, so `agent/ollama-agent.mjs` is a small MCP host that puts GhidraLens
+behind [Ollama](https://ollama.com) instead. No API key, nothing leaves the
+machine.
+
+```bash
+OLLAMA_MODEL=qwen3:14b node agent/ollama-agent.mjs "what does this binary do?"
+```
+
+It respects `_meta.ui.visibility`, so the app-only tools stay hidden from the
+model — the same separation a graphical client enforces. A ~9B model is enough to
+orient itself with `find_strings` and `list_functions`; a 14B is noticeably
+better at reading decompiled C.
+
 ## Tests
 
 | Suite | Needs Ghidra | Covers |

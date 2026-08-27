@@ -20,6 +20,7 @@
     "test:server": "node server/smoke.mjs",
     "test:bridge": "python bridge/test_serve.py",
     "test:ghidra": "python bridge/test_session.py",
-    "test:live": "node server/live.mjs"
+    "test:live": "node server/live.mjs",
+    "agent": "node agent/ollama-agent.mjs"
   }
 }

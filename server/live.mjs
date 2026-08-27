@@ -79,6 +79,33 @@ check(
   "every edge endpoint exists as a node (canvas layout assumes this)",
 );
 
+// The text half of a tool result is all a non-graphical client ever sees. It
+// once said "30 strings matched" and nothing else, and a local model duly called
+// find_strings three times in a row learning nothing. Assert it carries data.
+const rawText = async (name, args = {}) => {
+  const r = await client.callTool({ name, arguments: args });
+  return r.content.map((p) => p.text ?? "").join(String.fromCharCode(10));
+};
+
+const stringsText = await rawText("find_strings", { limit: 5 });
+check(/0x[0-9a-f]+\s+"/.test(stringsText), "find_strings text lists actual strings",
+  stringsText.split(String.fromCharCode(10))[1]?.slice(0, 48));
+
+// Filter to the target rather than taking the first page: the default sort is
+// by address, and imports occupy the low addresses, so page one is all imports.
+const listText = await rawText("list_functions", { query: target.name, limit: 5 });
+check(listText.includes(target.name) && listText.includes(target.address),
+  "list_functions text carries names and addresses",
+  listText.split(String.fromCharCode(10))[1]?.slice(0, 48));
+
+const codeText = await rawText("decompile", { address: target.address });
+check(codeText.split(String.fromCharCode(10)).length > 20 && codeText.includes("{"),
+  "decompile text contains readable C, not a line count",
+  `${codeText.split(String.fromCharCode(10)).length} lines`);
+
+const graphText = await rawText("call_graph", { address: target.address, depth: 1 });
+check(/direct call(ers|ees):/.test(graphText), "call_graph text names the neighbours");
+
 const xrefs = await call("xrefs_to", { address: target.address });
 check(Array.isArray(xrefs.references), "xrefs_to", `${xrefs.references.length} refs`);
 

@@ -22,6 +22,14 @@ import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { z } from "zod";
 
 import { Bridge, BridgeError, bridgeFromEnv } from "./bridge.js";
+import {
+  renderCallGraph,
+  renderDecompilation,
+  renderFunctions,
+  renderProgram,
+  renderStrings,
+  renderXrefs,
+} from "./render.js";
 import { VIEWS, registerViews } from "./views.js";
 
 const SERVER_INFO = { name: "ghidralens", version: "0.1.0" };
@@ -93,9 +101,7 @@ function buildServer(bridge: Bridge): McpServer {
     async ({ path, analyze }) =>
       guard(
         () => bridge.openBinary(path, analyze ?? true),
-        (info) =>
-          `Opened ${info.name} (${info.executableFormat}, ${info.languageId}) - ` +
-          `${info.functionCount} functions, image base ${info.imageBase}.`,
+        renderProgram,
       ),
   );
 
@@ -110,10 +116,7 @@ function buildServer(bridge: Bridge): McpServer {
     async () =>
       guard(
         () => bridge.info(),
-        (info) =>
-          info.open
-            ? `${info.name} - ${info.executableFormat}, ${info.languageId}, ${info.functionCount} functions.`
-            : "No binary open. Call open_binary first.",
+        renderProgram,
       ),
   );
 
@@ -139,9 +142,7 @@ function buildServer(bridge: Bridge): McpServer {
     async ({ address, name }) =>
       guard(
         () => bridge.decompile({ address, name }),
-        (d) =>
-          `${d.signature} at ${d.address} - ${d.lines.length} lines, ` +
-          `${d.calls.length} calls out, ${d.callers.length} callers.`,
+        renderDecompilation,
       ),
   );
 
@@ -167,7 +168,7 @@ function buildServer(bridge: Bridge): McpServer {
     async (args) =>
       guard(
         () => bridge.listFunctions(args),
-        (list) => `${list.functions.length} of ${list.total} functions.`,
+        renderFunctions,
       ),
   );
 
@@ -192,7 +193,7 @@ function buildServer(bridge: Bridge): McpServer {
     async ({ address, name, depth }) =>
       guard(
         () => bridge.callGraph({ address, name, depth }),
-        (g) => `${g.nodes.length} functions, ${g.edges.length} call edges around ${g.root}.`,
+        renderCallGraph,
       ),
   );
 
@@ -214,7 +215,7 @@ function buildServer(bridge: Bridge): McpServer {
     async (args) =>
       guard(
         () => bridge.strings(args),
-        (r) => `${r.strings.length} strings matched.`,
+        renderStrings,
       ),
   );
 
@@ -237,7 +238,7 @@ function buildServer(bridge: Bridge): McpServer {
     async (args) =>
       guard(
         () => bridge.xrefsTo(args),
-        (r) => `${r.references.length} references to ${r.address}.`,
+        renderXrefs,
       ),
   );
 

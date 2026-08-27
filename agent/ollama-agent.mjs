@@ -23,6 +23,11 @@ const OLLAMA = process.env.OLLAMA_URL ?? "http://127.0.0.1:11434";
 // but a reverse engineer is usually running something else on the GPU too.
 const MODEL = process.env.OLLAMA_MODEL ?? "huihui_ai/qwen3.5-abliterated:9b";
 const MAX_TURNS = Number(process.env.GHIDRALENS_MAX_TURNS ?? 12);
+const NUM_CTX = Number(process.env.OLLAMA_NUM_CTX ?? 16384);
+// Ollama parks the model in VRAM for 5 minutes after the last request. Set
+// OLLAMA_KEEP_ALIVE=0 to hand the memory back immediately - worth it on a
+// machine that is also doing something else.
+const KEEP_ALIVE = process.env.OLLAMA_KEEP_ALIVE;
 
 const SYSTEM = `You are a reverse engineer working in Ghidra through tools.
 
@@ -93,7 +98,8 @@ async function chat(messages, tools) {
       // Qwen3 emits a reasoning block by default. It is not useful in a trace
       // and it eats the context window a long RE session needs.
       think: false,
-      options: { temperature: 0.3, num_ctx: 16384 },
+      options: { temperature: 0.3, num_ctx: NUM_CTX },
+      ...(KEEP_ALIVE === undefined ? {} : { keep_alive: Number(KEEP_ALIVE) }),
     }),
   });
 

@@ -2,14 +2,24 @@
 
 **Ghidra, rendered inside your AI client. Click a symbol to rename it. Click a call to follow it.**
 
+[![MCP Apps](https://img.shields.io/badge/MCP-Apps%20extension-0e7490)](https://modelcontextprotocol.io/seps/1865-mcp-apps-interactive-user-interfaces-for-mcp)
+[![Ghidra 11.3+](https://img.shields.io/badge/Ghidra-11.3%2B-b45309)](https://ghidra-sre.org/)
+[![Local models](https://img.shields.io/badge/local%20models-Ollama-5fd3e8)](#running-it-on-a-local-model)
+[![MIT](https://img.shields.io/badge/licence-MIT-64748b)](LICENSE)
+
+![The decompiler view](docs/img/decompiler.png)
+
 Every Ghidra MCP server so far returns text. The model can read it; you cannot
 navigate it. GhidraLens returns the same analysis as an **interactive view** —
 built on [MCP Apps](https://modelcontextprotocol.io/seps/1865-mcp-apps-interactive-user-interfaces-for-mcp)
 (`io.modelcontextprotocol/ui`), the extension that lets a server ship real HTML
 into the conversation.
 
-You and the model are looking at the same live program. When you rename a
-variable by clicking it, the model's next decompile sees the new name.
+You and the model are looking at the same live program. Rename a variable by
+clicking it and the model's next decompile sees the new name.
+
+That is a real screenshot: `where.exe`, decompiled by Ghidra, every identifier
+carrying the address it came from.
 
 ---
 
@@ -20,6 +30,14 @@ variable by clicking it, the model's next decompile sees the new name.
 | **Decompiler** | Ghidra's C output as a live token stream — every identifier carries its address and its kind. Click a local to rename it, click a call to follow it. Callers, callees and variables in a sidebar. |
 | **Function browser** | Every function in the binary, filterable and sortable by address, name, size or caller count. Click a row to decompile it. |
 | **Call graph** | Callers to the left, callees to the right, the function you asked about in the middle. Click any node to recenter. |
+
+### Function browser
+
+![The function browser](docs/img/functions.png)
+
+### Call graph
+
+![The call graph](docs/img/callgraph.png)
 
 Ten tools total. Three open views; the rest are lookups and writes, including
 two the model never sees — they exist only so a click in a view can fire them.

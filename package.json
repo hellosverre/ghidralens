@@ -1,7 +1,6 @@
 {
   "name": "ghidralens",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "description": "Interactive Ghidra reverse-engineering views inside your MCP client.",
   "workspaces": [
@@ -21,6 +20,43 @@
     "test:bridge": "python bridge/test_serve.py",
     "test:ghidra": "python bridge/test_session.py",
     "test:live": "node server/live.mjs",
-    "agent": "node agent/ollama-agent.mjs"
+    "agent": "node agent/ollama-agent.mjs",
+    "prepublishOnly": "npm run build"
+  },
+  "license": "MIT",
+  "author": "hellosverre",
+  "homepage": "https://github.com/hellosverre/ghidralens#readme",
+  "bugs": {
+    "url": "https://github.com/hellosverre/ghidralens/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hellosverre/ghidralens.git"
+  },
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "mcp-apps",
+    "ghidra",
+    "reverse-engineering",
+    "decompiler",
+    "binary-analysis",
+    "modelcontextprotocol"
+  ],
+  "bin": {
+    "ghidralens": "server/dist/index.js"
+  },
+  "files": [
+    "server/dist",
+    "ui/dist",
+    "bridge",
+    "agent",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.7.5",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^4.4.3"
   }
 }

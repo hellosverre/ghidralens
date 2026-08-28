@@ -94,8 +94,8 @@ client config:
 {
   "mcpServers": {
     "ghidralens": {
-      "command": "node",
-      "args": ["/absolute/path/to/ghidralens/server/dist/index.js"],
+      "command": "npx",
+      "args": ["-y", "ghidralens"],
       "env": {
         "GHIDRALENS_BRIDGE_URL": "http://127.0.0.1:8799",
         "GHIDRALENS_TOKEN": "paste-the-printed-token-here"
@@ -104,6 +104,9 @@ client config:
   }
 }
 ```
+
+Running from a clone instead? Point `command` at `node` and `args` at
+`/absolute/path/to/ghidralens/server/dist/index.js`.
 
 Then ask your client: *"decompile the function that handles license validation"*.
 

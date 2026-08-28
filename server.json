@@ -1,0 +1,36 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.hellosverre/ghidralens",
+  "description": "Interactive Ghidra views in your AI client: decompile, rename, and navigate a binary.",
+  "version": "0.1.0",
+  "repository": {
+    "url": "https://github.com/hellosverre/ghidralens",
+    "source": "github"
+  },
+  "websiteUrl": "https://github.com/hellosverre/ghidralens#readme",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "ghidralens",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "GHIDRALENS_TOKEN",
+          "description": "Shared secret printed by the PyGhidra bridge on startup. Start the bridge first: python bridge/serve.py --binary <path>",
+          "isRequired": true,
+          "isSecret": true
+        },
+        {
+          "name": "GHIDRALENS_BRIDGE_URL",
+          "description": "Where the PyGhidra bridge is listening. Defaults to http://127.0.0.1:8799",
+          "isRequired": false,
+          "isSecret": false,
+          "default": "http://127.0.0.1:8799"
+        }
+      ]
+    }
+  ]
+}

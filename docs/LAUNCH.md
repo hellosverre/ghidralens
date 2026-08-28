@@ -104,11 +104,47 @@ Same body as Reddit, minus the star count of the incumbent — HN reads that as
 positioning. Lead with the token-tree detail instead; it is the technically
 interesting part and that audience rewards it.
 
-### MCP directories
+### MCP directories — status
 
-- `registry.modelcontextprotocol.io` — official registry
-- The MCP Apps examples directory (small, new, mostly empty)
-- `glama.ai/mcp/servers`, `mcpservers.org`
+| Directory | Route | Status |
+| --- | --- | --- |
+| punkpeye/awesome-mcp-servers | PR | **Open:** [#13086](https://github.com/punkpeye/awesome-mcp-servers/pull/13086) |
+| AlexMili/Awesome-MCP | PR | **Open:** [#180](https://github.com/AlexMili/Awesome-MCP/pull/180) |
+| registry.modelcontextprotocol.io | `mcp-publisher` CLI | Blocked on the npm publish — `server.json` is written and validates |
+| mcpservers.org (wong2) | Web form, no PRs | **Needs you** — the form asks for a contact email |
+| mcp.so (chatmcp) | Web form | **Needs you** |
+| smithery.ai | `smithery` CLI + account | **Needs you** |
+| glama.ai | Auto-indexes public GitHub repos | Nothing to do; it finds the repo on its own |
+| modelcontextprotocol/servers | — | Retired. Its README list now redirects to the official registry. |
+
+### Publishing, in order
+
+The registry only stores metadata, so the npm package has to exist first:
+
+```bash
+npm login
+npm publish            # prepublishOnly runs the build
+```
+
+```bash
+brew install mcp-publisher     # or grab the binary from the registry releases
+mcp-publisher login github
+mcp-publisher publish          # reads server.json
+```
+
+The npm name `ghidralens` was free as of this writing. `server.json` is already
+pinned to version 0.1.0 — bump both together on every release or the registry
+entry points at a package version that does not exist.
+
+### mcpservers.org form, pre-filled
+
+| Field | Value |
+| --- | --- |
+| Server Name | GhidraLens |
+| Short Description | Interactive Ghidra views in your AI client: decompile a binary, rename symbols in the live program, and navigate the call graph. |
+| Link | https://github.com/hellosverre/ghidralens |
+| Category | Development |
+| Premium Submit ($39) | Leave unchecked — free listing is the same listing, just slower |
 
 ## What not to claim
 

@@ -1,6 +1,7 @@
 {
   "name": "ghidralens",
-  "version": "0.1.0",
+  "mcpName": "io.github.hellosverre/ghidralens",
+  "version": "0.1.1",
   "type": "module",
   "description": "Interactive Ghidra reverse-engineering views inside your MCP client.",
   "workspaces": [

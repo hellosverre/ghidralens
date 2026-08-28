@@ -6,6 +6,7 @@
 [![MCP Apps](https://img.shields.io/badge/MCP-Apps%20extension-0e7490)](https://modelcontextprotocol.io/seps/1865-mcp-apps-interactive-user-interfaces-for-mcp)
 [![Ghidra 11.3+](https://img.shields.io/badge/Ghidra-11.3%2B-b45309)](https://ghidra-sre.org/)
 [![Local models](https://img.shields.io/badge/local%20models-Ollama-5fd3e8)](#running-it-on-a-local-model)
+[![npm](https://img.shields.io/npm/v/ghidralens?color=b45309&label=npm)](https://www.npmjs.com/package/ghidralens)
 [![MIT](https://img.shields.io/badge/licence-MIT-64748b)](LICENSE)
 
 ![The decompiler view](docs/img/decompiler.png)
@@ -110,6 +111,8 @@ Running from a clone instead? Point `command` at `node` and `args` at
 `/absolute/path/to/ghidralens/server/dist/index.js`.
 
 Then ask your client: *"decompile the function that handles license validation"*.
+
+Also listed in the official MCP Registry as `io.github.hellosverre/ghidralens`.
 
 ## Tools
 

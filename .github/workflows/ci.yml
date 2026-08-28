@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A second push to a PR should cancel the first run rather than queue behind it.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The two suites that need neither Ghidra nor a JDK. bridge/test_session.py and
+  # server/live.mjs are the ones that actually prove the Ghidra calls, but they
+  # need a Ghidra installation and minutes of auto-analysis, so they stay a local
+  # gate rather than a CI one.
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 20 is the floor the SDK requires; 22 is what most people will run.
+        node: ["20", "22"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: |
+          npx tsc -p server/tsconfig.json --noEmit
+          npx tsc -p ui/tsconfig.json
+
+      - name: Build server and views
+        run: npm run build
+
+      # A view that failed to build still "works" - it renders a placeholder -
+      # so check the real thing is there rather than trusting the exit code.
+      - name: Views built, not placeholders
+        run: |
+          for view in decompiler functions callgraph; do
+            path="ui/dist/$view.html"
+            test -f "$path" || { echo "missing $path"; exit 1; }
+            size=$(wc -c < "$path")
+            test "$size" -gt 100000 || { echo "$path is only $size bytes"; exit 1; }
+            echo "ok  $path  $size bytes"
+          done
+
+      - name: MCP surface
+        run: node server/smoke.mjs
+
+      - name: Starts unconfigured
+        # Regression guard for the bug that made the server exit(1) with no
+        # token, which made "not configured" look identical to "broken".
+        run: |
+          env -u GHIDRALENS_TOKEN -u GHIDRALENS_BRIDGE_URL \
+            timeout 10s node server/dist/index.js < /dev/null > out.log 2> err.log || true
+          if grep -q "fatal" err.log; then echo "server exited at startup:"; cat err.log; exit 1; fi
+          grep -q "ready on stdio" err.log || { echo "server never became ready"; cat err.log; exit 1; }
+          echo "ok  starts with no configuration"
+
+      - name: Package installs and introspects
+        # Catches a broken "files" list or a path that only resolves in the repo.
+        run: |
+          npm pack
+          mkdir -p /tmp/pkgtest && cd /tmp/pkgtest
+          npm init -y > /dev/null
+          npm i "$GITHUB_WORKSPACE"/ghidralens-*.tgz
+          test -f node_modules/ghidralens/ui/dist/decompiler.html || { echo "ui/dist missing from the package"; exit 1; }
+          test -f node_modules/ghidralens/server/dist/index.js || { echo "server/dist missing from the package"; exit 1; }
+          echo "ok  packed layout is complete"
+
+  bridge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # PyGhidra needs <=3.13 (JPype ships no 3.14 wheel), so test the ceiling.
+          python-version: "3.13"
+
+      - name: Bridge HTTP layer
+        # No JVM here: these cover auth, CSRF rejection, routing and validation,
+        # which are pure Python and the parts most easily broken by accident.
+        run: python bridge/test_serve.py
+
+      - name: Bridge modules import cleanly
+        run: python -c "import sys; sys.path.insert(0, 'bridge'); import session, serve; print(len(serve.ROUTES), 'routes')"

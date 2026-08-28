@@ -9,3 +9,6 @@ __pycache__/
 # vite dep cache lives inside the workspace, not the root node_modules
 ui/node_modules/
 .playwright-mcp/
+
+# npm pack output
+*.tgz

@@ -98,6 +98,12 @@ for (const uri of EXPECTED_VIEWS) {
   );
 }
 
+// An unconfigured server must still start and introspect. Registries check
+// exactly this, and so does any client that populates a tool picker before the
+// user has set anything up - exiting at startup makes "not configured yet" look
+// identical to "broken". The smoke test runs with no GHIDRALENS_TOKEN reaching
+// a bridge at all, so getting this far already proves it.
+
 // A dead bridge has to come back as a tool error, not as an exception that
 // takes the transport down with it.
 const result = await client.callTool({ name: "program_info", arguments: {} });

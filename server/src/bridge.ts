@@ -180,6 +180,14 @@ export class Bridge {
     params: Record<string, unknown> = {},
     timeoutMs = this.config.timeoutMs,
   ): Promise<T> {
+    if (!this.config.token) {
+      throw new BridgeError(
+        "GHIDRALENS_TOKEN is not set. Start the bridge with " +
+          "`python bridge/serve.py --binary <path>` and put the token it prints " +
+          "into this server's environment.",
+      );
+    }
+
     const url = new URL(path, this.config.url);
     const init: RequestInit = {
       method,
@@ -234,16 +242,23 @@ export class Bridge {
   }
 }
 
+/**
+ * Build a Bridge from the environment, missing token and all.
+ *
+ * Deliberately does not fail here. `tools/list` is a static, in-memory answer
+ * that needs no bridge and no token, and plenty of things ask for it before
+ * anyone has configured credentials - a client populating its tool picker, a
+ * registry checking the server starts, a user reading what it can do before
+ * deciding to install Ghidra. Exiting at startup turns all of those into "this
+ * server is broken" when it is merely unconfigured.
+ *
+ * The missing token surfaces on the first tool call instead, as an ordinary tool
+ * error with instructions, which is where the user can actually act on it.
+ */
 export function bridgeFromEnv(): Bridge {
-  const url = process.env.GHIDRALENS_BRIDGE_URL ?? "http://127.0.0.1:8799";
-  const token = process.env.GHIDRALENS_TOKEN ?? "";
-
-  if (!token) {
-    throw new Error(
-      "GHIDRALENS_TOKEN is not set. Start `python bridge/serve.py` and copy the " +
-        "token it prints into your MCP client config (or into .env).",
-    );
-  }
-
-  return new Bridge({ url, token, timeoutMs: 120_000 });
+  return new Bridge({
+    url: process.env.GHIDRALENS_BRIDGE_URL ?? "http://127.0.0.1:8799",
+    token: process.env.GHIDRALENS_TOKEN ?? "",
+    timeoutMs: 120_000,
+  });
 }

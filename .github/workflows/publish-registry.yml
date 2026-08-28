@@ -1,0 +1,58 @@
+name: Publish to MCP Registry
+
+# Tag-driven, because the registry entry points at a specific npm version and the
+# two must not drift. Publishing on every push would list versions that were
+# never released.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      # OIDC is what proves to the registry that this workflow speaks for the
+      # io.github.hellosverre namespace. No stored credential, nothing to rotate.
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      # The registry stores metadata only, so the npm package must already
+      # exist at the version server.json names. Fail early and say why rather
+      # than letting the publish create a listing that resolves to nothing.
+      - name: Check npm has the version server.json points at
+        run: |
+          name=$(node -p "require('./server.json').packages[0].identifier")
+          want=$(node -p "require('./server.json').packages[0].version")
+          pkg=$(node -p "require('./package.json').version")
+          echo "server.json: $name@$want   package.json: $pkg"
+          if [ "$want" != "$pkg" ]; then
+            echo "::error::server.json ($want) and package.json ($pkg) disagree on the version"
+            exit 1
+          fi
+          code=$(curl -s -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/$name/$want")
+          if [ "$code" != "200" ]; then
+            echo "::error::$name@$want is not on npm yet (HTTP $code). Publish it before tagging."
+            exit 1
+          fi
+          echo "ok  $name@$want is live on npm"
+
+      - name: Install mcp-publisher
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+
+      - name: Validate server.json
+        run: ./mcp-publisher validate
+
+      - name: Authenticate
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish
+        run: ./mcp-publisher publish

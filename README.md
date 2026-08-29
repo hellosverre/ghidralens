@@ -114,6 +114,13 @@ Then ask your client: *"decompile the function that handles license validation"*
 
 Also listed in the official MCP Registry as `io.github.hellosverre/ghidralens`.
 
+> **Editing the config by hand?** Quit the client first — properly, including any
+> system-tray icon. Claude Desktop keeps its own copy of
+> `claude_desktop_config.json` in memory and writes it back over yours when it
+> exits, so an edit made while it is running silently disappears on the next
+> restart. Editing through Settings → Developer → Edit Config avoids the race
+> entirely.
+
 ## Tools
 
 | Tool | Visible to | Renders |

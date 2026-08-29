@@ -12,3 +12,7 @@ ui/node_modules/
 
 # npm pack output
 *.tgz
+
+# demo binary is copied from System32 by hand; not ours to redistribute
+demo/
+start-bridge.cmd

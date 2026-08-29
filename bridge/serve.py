@@ -177,6 +177,38 @@ ROUTES = {
 # --------------------------------------------------------------------- main
 
 
+def default_project_dir() -> str:
+    """
+    Somewhere to keep Ghidra projects that Ghidra will actually accept.
+
+    Not a dotfile directory. Ghidra's ProjectLocator rejects any path element
+    starting with '.' outright - "Path element starting with '.' is not
+    permitted" - which rules out the obvious ~/.ghidralens as well as
+    ~/.local/share. The error surfaces from deep inside the JVM at open time and
+    names neither the setting nor the offending path, so it is worth not walking
+    into.
+    """
+    if os.name == "nt":
+        base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+        return os.path.join(base, "GhidraLens", "projects")
+    return os.path.join(os.path.expanduser("~"), "GhidraLens", "projects")
+
+
+def check_project_dir(path: str) -> None:
+    """Fail here, with the reason, rather than inside the JVM."""
+    offenders = [
+        part
+        for part in os.path.abspath(path).replace("\\", "/").split("/")
+        if part.startswith(".") and part not in (".", "..")
+    ]
+    if offenders:
+        raise SystemExit(
+            "Ghidra will not open a project under a dot-directory "
+            f"({', '.join(offenders)} in {path}). Pass --projects with a path "
+            "that has no element starting with '.'"
+        )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="GhidraLens PyGhidra bridge")
     parser.add_argument("--host", default="127.0.0.1")
@@ -185,10 +217,7 @@ def main() -> int:
     parser.add_argument("--no-analyze", action="store_true")
     parser.add_argument(
         "--projects",
-        default=os.environ.get(
-            "GHIDRALENS_PROJECTS",
-            os.path.join(os.path.expanduser("~"), ".ghidralens", "projects"),
-        ),
+        default=os.environ.get("GHIDRALENS_PROJECTS", default_project_dir()),
         help="where Ghidra project files are written",
     )
     args = parser.parse_args()
@@ -198,6 +227,7 @@ def main() -> int:
 
     token = os.environ.get("GHIDRALENS_TOKEN") or secrets.token_urlsafe(24)
 
+    check_project_dir(args.projects)
     session = GhidraSession(project_dir=args.projects)
 
     if args.binary:

@@ -196,6 +196,33 @@ The first two are what CI can run. `test_session.py` is the one that matters
 after touching `bridge/session.py` — it is the only thing that proves the Ghidra
 API calls are right, and it caught three real bugs the day it was written.
 
+## Containerising it
+
+The `Dockerfile` builds the server and views for clients or registries that want
+to start it themselves. One thing to get right:
+
+```dockerfile
+CMD ["node", "server/dist/index.js"]     # correct
+CMD ["npm", "run", "start"]              # breaks the protocol
+```
+
+A stdio MCP server speaks JSON-RPC on stdout, and `npm run` / `pnpm run` print
+the script banner there first:
+
+```
+> ghidralens@0.1.1 start
+> node server/dist/index.js
+```
+
+Those lines land in the stream ahead of the handshake and the client gives up
+mid-initialize. The symptom is unhelpful - the container builds, starts, exits
+cleanly, and the client just reports no tools - so it is worth not stepping on.
+Invoke node directly.
+
+Real analysis still needs the bridge on the host: `127.0.0.1` inside a container
+is the container, so point `GHIDRALENS_BRIDGE_URL` at `host.docker.internal` or
+a real address.
+
 ## Security
 
 The bridge binds `127.0.0.1` only, requires a per-run token in

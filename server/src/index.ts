@@ -16,6 +16,7 @@
  * tool list short and stops it from renaming things on its own initiative.
  */
 
+import { readFileSync } from "node:fs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
@@ -32,7 +33,26 @@ import {
 } from "./render.js";
 import { VIEWS, registerViews } from "./views.js";
 
-const SERVER_INFO = { name: "ghidralens", version: "0.1.0" };
+/**
+ * Version comes from package.json rather than a constant here.
+ *
+ * A hardcoded one drifts silently: the server reported 0.1.0 in its
+ * `serverInfo` while the published package was 0.1.1, and nothing catches that
+ * because both are valid strings. It only showed up in someone else's sandbox
+ * log. Reading the manifest keeps the handshake honest for free - and the path
+ * resolves the same in the repo (server/dist/../..) and installed under
+ * node_modules/ghidralens.
+ */
+function serverVersion(): string {
+  try {
+    const manifest = new URL("../../package.json", import.meta.url);
+    return JSON.parse(readFileSync(manifest, "utf8")).version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
+const SERVER_INFO = { name: "ghidralens", version: serverVersion() };
 
 /**
  * Every tool body runs through this. A failed decompilation or a bridge that is
